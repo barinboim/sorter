@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Sorter 1.1</title>
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="grid-bg" aria-hidden="true"></div>
+
+  <!-- ШАПКА -->
+  <header id="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="wordmark">Sorter 1.1</span>
+      <span class="sub">нейминг · сортировка слов</span>
+    </div>
+    <div class="counters" id="counters">
+      <div class="chip ghost"><b id="cPlayed">0</b><span>сыграно</span></div>
+      <div class="chip ghost"><b id="cLeft">100</b><span>осталось</span></div>
+      <button class="iconbtn" id="btnFinish" title="Завершить раунд → к комментариям">✓</button>
+      <button class="iconbtn" id="btnRestart" title="Начать раунд заново">↻</button>
+      <button class="iconbtn" id="btnMenu" title="Меню">≡</button>
+    </div>
+    <div class="progress"><i id="progressBar"></i></div>
+  </header>
+
+  <!-- ИГРА -->
+  <main id="game" class="screen">
+    <div class="lane">
+      <aside class="basket bad" id="basketBad">
+        <div class="bcount" id="badCount">0</div>
+        <div class="bkey"><kbd>A</kbd><kbd>←</kbd></div>
+      </aside>
+
+      <div class="playfield" id="playfield">
+        <div class="skiphint"><kbd>↑</kbd><kbd>W</kbd> SKIP</div>
+        <div class="streak" id="streak"></div>
+        <div class="leaders" id="leaders"></div>
+        <!-- карточки инжектятся сюда -->
+      </div>
+
+      <aside class="basket good" id="basketGood">
+        <div class="bcount" id="goodCount">0</div>
+        <div class="bkey"><kbd>→</kbd><kbd>D</kbd></div>
+      </aside>
+    </div>
+  </main>
+
+  <!-- ИТОГИ -->
+  <section id="results" class="screen hidden">
+    <div class="results-head">
+      <h2 id="resTitle">Итоги раунда</h2>
+      <div class="results-actions">
+        <div class="resview">
+          <button class="modebtn on" id="viewRound">этот раунд</button>
+          <button class="modebtn" id="viewAll">за всё время</button>
+        </div>
+        <button class="btn" id="btnExport">Экспорт .txt</button>
+        <button class="btn fusion" id="btnForgeRound">✦ Fusion!</button>
+        <button class="btn primary" id="btnNewRound">Новый раунд</button>
+      </div>
+    </div>
+    <div class="results-cols">
+      <div class="rescol good">
+        <header><span class="dot"></span>GOOD <b id="resGoodCount">0</b></header>
+        <div class="reslist" id="resGood"></div>
+      </div>
+      <div class="rescol bad">
+        <header><span class="dot"></span>BAD <b id="resBadCount">0</b></header>
+        <div class="reslist" id="resBad"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- СТАРТ / ЗАГРУЗКА -->
+  <div id="startOverlay" class="overlay">
+    <div class="panel start">
+      <div class="kicker">нейминг-игра</div>
+      <h1>Sorter 1.1</h1>
+
+      <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <div class="loadtext">Загрузка словарей… <b id="loadCount">0 / 8</b></div>
+        <div class="loadbar"><i id="loadBar"></i></div>
+      </div>
+
+      <div id="startReady" class="hidden">
+        <p class="lede">Слова появляются по одному в центре. Раскидай их по корзинам — что годится в нейм, а что нет.</p>
+
+        <div class="setrow">
+          <div class="setcell">
+            <label>Слов в раунде <span class="val" id="roundVal"></span></label>
+            <input type="range" id="roundSize" min="10" max="300" step="10">
+          </div>
+          <div class="setcell">
+            <label>Длина слова <span class="val" id="lenVal"></span></label>
+            <input type="range" id="lenMax" min="2" max="18" step="1">
+          </div>
+        </div>
+
+        <button class="btn addict" id="btnAddDictStart">+ добавить свой словарь</button>
+
+        <div class="startlangs">
+          <label>Словари в пуле</label>
+          <div class="langmini" id="startLangs"></div>
+        </div>
+
+        <div class="legend">
+          <div><kbd>←</kbd><kbd>A</kbd><kbd>Space</kbd> в <span class="bad-t">BAD</span></div>
+          <div><kbd>→</kbd><kbd>D</kbd><kbd>Enter</kbd> в <span class="good-t">GOOD</span></div>
+          <div><kbd>↑</kbd><kbd>W</kbd> пропустить</div>
+        </div>
+
+        <button class="btn primary big" id="btnStart" disabled>Старт</button>
+        <div class="starthint">или нажми <kbd>Enter</kbd></div>
+        <div class="starthint">на телефоне — свайп карточки: <b class="bad-t">←</b> плохо · <b class="good-t">→</b> хорошо · <b>↑</b> пропуск</div>
+
+        <div class="neim">
+          <input type="text" id="neimInput" placeholder="проверить нейм по фоносемантике…" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <div class="neimres" id="neimResult"></div>
+        </div>
+
+        <div class="poolinfo" id="poolInfo"></div>
+        <div class="credit">Автор: Олег Баринбойм · связаться: <a href="https://t.me/barinboim" target="_blank" rel="noopener">t.me/barinboim</a></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- МЕНЮ -->
+  <div id="menuOverlay" class="overlay hidden">
+    <div class="panel menu">
+      <div class="panel-head">
+        <h2>Настройки</h2>
+        <button class="iconbtn" id="btnCloseMenu" title="Закрыть">✕</button>
+      </div>
+
+      <div class="field">
+        <label>Языки в пуле</label>
+        <div class="langs" id="langToggles"></div>
+      </div>
+
+      <div class="field">
+        <label>Свои словари <span class="val" id="customInfo"></span></label>
+        <div id="dictList" class="dictlist"></div>
+        <div class="cust-row">
+          <label class="btn filebtn">Добавить .txt<input type="file" id="customFile" accept=".txt,text/plain" multiple hidden></label>
+          <button class="btn" id="btnLlmPrompt">Промпт для LLM</button>
+        </div>
+        <div id="pasteBox">
+          <input type="text" id="pasteName" class="neim-in" placeholder="название словаря" autocomplete="off">
+          <textarea id="customText" placeholder="слова по одному на строку"></textarea>
+          <button class="btn" id="btnSavePaste">Добавить словарь</button>
+        </div>
+        <p class="hint">Каждый словарь — отдельный «язык» ✎ в «Языки в пуле»: миксуй или включай по одному.</p>
+      </div>
+
+      <div class="field">
+        <label>Адаптивный подбор <span class="val" id="adaptInfo"></span></label>
+        <div class="langs"><button class="lang" id="adaptToggle"><span class="tag">ВКУС</span> учить мой вкус</button></div>
+        <input type="range" id="focus" min="1" max="10" step="1" style="margin-top:12px">
+        <div class="rng-ends"><span>разведка</span><span>фокус</span></div>
+        <div class="hist-row" style="margin-top:10px">
+          <span id="tasteInfo" class="muted">—</span>
+          <button class="btn danger" id="btnResetTaste">Сбросить вкус</button>
+        </div>
+        <p class="hint">Учится на good/bad по фоносемантике Журавлёва — какие качества (светлый, нежный, сильный…) ты предпочитаешь. Разведка = больше случайности, фокус = плотнее по вкусу.</p>
+        <div class="qhead">Лидеры / мой набор: <span id="leadersNow" class="qlead">учится…</span><button class="qclear" id="btnClearQ">сбросить</button></div>
+        <div class="qpick" id="qpick"></div>
+        <p class="hint">Подсвечены качества-лидеры. Кликни любые — задашь свой набор вручную (перебьёт выученное).</p>
+      </div>
+
+      <div class="field">
+        <label>Проверить нейм по фоносемантике</label>
+        <input type="text" id="neimInput2" class="neim-in" placeholder="введи имя…" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div class="neimres" id="neimResult2"></div>
+      </div>
+
+      <div class="field">
+        <label>Скорость анимации <span class="val" id="animVal"></span></label>
+        <input type="range" id="animSpeed" min="1" max="10" step="1">
+        <div class="rng-ends"><span>нормальная</span><span>супер-быстро</span></div>
+      </div>
+
+      <div class="field">
+        <label>История</label>
+        <div class="hist-row">
+          <span id="playedInfo" class="muted">—</span>
+          <button class="btn danger" id="btnResetHistory">Сбросить историю</button>
+        </div>
+        <p class="hint">Сброс вернёт уже сыгранные слова обратно в пул. «За всё время» и вкус не тронутся.</p>
+        <div class="hist-row" style="margin-top:12px">
+          <span id="alltimeInfo" class="muted">—</span>
+          <button class="btn danger" id="btnResetAllTime">Очистить «за всё время»</button>
+        </div>
+        <p class="hint">Удалит накопленный список good/bad «за всё время» вместе с комментариями. Сыгранные слова и вкус останутся.</p>
+      </div>
+
+      <div class="field">
+        <button class="btn" id="btnCloseMenu2">Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="phono.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
