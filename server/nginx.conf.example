@@ -1,0 +1,32 @@
+# nginx-фронт для бэкенда статистики на отдельном хосте api.barinbo.im.
+# Игра (https://sorter.barinbo.im, GitHub Pages) ходит сюда fetch/sendBeacon.
+# TLS обязателен: страница по HTTPS не достучится до HTTP-API (mixed content).
+#
+# 1) DNS: A/AAAA-запись api.barinbo.im → IP твоего VPS.
+# 2) Положи это в /etc/nginx/sites-available/api.barinbo.im, симлинк в sites-enabled.
+# 3) TLS-сертификат:  sudo certbot --nginx -d api.barinbo.im
+#    (certbot сам допишет server-блок на 443 и редирект с 80).
+
+# ограничитель частоты — чтобы не залили мусором (10 r/s на IP, burst 20)
+limit_req_zone $binary_remote_addr zone=sorter_api:10m rate=10r/s;
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.barinbo.im;
+
+    location / {
+        limit_req zone=sorter_api burst=20 nodelay;
+
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+
+        # реальный IP игрока → приложение хеширует его с солью
+        proxy_set_header X-Real-IP        $remote_addr;
+        proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host             $host;
+
+        # CORS отдаёт само приложение (нужный Origin) — nginx не трогает.
+    }
+}

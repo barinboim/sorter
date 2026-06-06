@@ -93,10 +93,59 @@
       K_DICTS  = "sorter.customdicts.v1",
       K_ALLGOOD = "sorter.allgood.v1",
       K_ALLBAD  = "sorter.allbad.v1",
-      K_COMMENTS = "sorter.comments.v1";
+      K_COMMENTS = "sorter.comments.v1",
+      K_CLIENT  = "sorter.clientid.v1";
 
   function load(k, def) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch (e) { return def; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  // ── телеметрия / лидерборд (опционально) ────────────────────────────────
+  // Кросс-игровая статистика на отдельном бэкенде (server/sorter_stats.py на VPS).
+  // ⚠️ ПОДСТАВЬ СВОЙ ХОСТ API ниже. Пусто ("") — телеметрия и лидерборд выключены,
+  // игра работает ровно как раньше, в сеть не ходит. Бэкенд видит IP сервер-сайд,
+  // солит+хеширует (сырой IP не хранит) и отдаёт лидерборд обратно.
+  var API_BASE = "https://api.barinbo.im";   // ← URL бэкенда статистики (или "" чтобы выключить)
+
+  var tele = (function () {
+    var on = !!API_BASE;
+    if (!on) return { on: false, hello: function () {}, word: function () {}, flush: function () {}, roundDone: function () {}, leaderboard: function () { return Promise.reject(); } };
+    var cid = load(K_CLIENT, null);
+    if (!cid) { cid = (Date.now().toString(36) + Math.random().toString(36).slice(2, 10)); save(K_CLIENT, cid); }
+    var buf = [], seq = (load("sorter.teleseq.v1", 0) | 0);
+    function nextSeq() { seq++; save("sorter.teleseq.v1", seq); return seq; }
+    function post(path, body, beacon) {
+      try {
+        var url = API_BASE + path, json = JSON.stringify(body);
+        if (beacon && navigator.sendBeacon) { navigator.sendBeacon(url, new Blob([json], { type: "application/json" })); return; }
+        fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: json, keepalive: true, mode: "cors" })
+          .catch(function () {});   // fire-and-forget: сеть/бэкенд недоступны — игра не страдает
+      } catch (e) {}
+    }
+    return {
+      on: true,
+      hello: function () { post("/api/hello", { clientId: cid }); },
+      word: function (item, good) {
+        // label = видимый токен (для grc/el/sa — транслит), как на карточке
+        var label = (TR_LANGS[item.lang] && item.tr) ? item.tr : item.w;
+        buf.push({ label: label, lang: item.lang, good: !!good });
+        if (buf.length >= 10) this.flush();
+      },
+      flush: function (beacon) {
+        if (!buf.length) return;
+        var items = buf; buf = [];
+        post("/api/words", { clientId: cid, seq: nextSeq(), items: items }, beacon);
+      },
+      roundDone: function () { this.flush(); post("/api/round", { clientId: cid, seq: nextSeq() }); },
+      leaderboard: function () {
+        return fetch(API_BASE + "/api/leaderboard", { mode: "cors" }).then(function (r) {
+          if (!r.ok) throw new Error("http " + r.status); return r.json();
+        });
+      }
+    };
+  })();
+  // дослать недосланное при уходе со страницы (закрытие вкладки / сворачивание)
+  window.addEventListener("pagehide", function () { try { tele.flush(true); } catch (e) {} });
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") { try { tele.flush(true); } catch (e) {} } });
 
   // ── состояние ──────────────────────────────────────────────────────────
   var poolByLang = {};                 // code -> [words]
@@ -485,6 +534,7 @@
     round = { remaining: pool, good: [], bad: [], target: Math.min(settings.roundSize || ROUND_SIZE, pool.length),
               active: null, locked: false, streakDir: null, streakN: 0, forge: !!forge, gen: ++roundGen };
     hide($("startOverlay")); hide($("results")); show($("game"));
+    if (!tele._hello) { tele._hello = true; tele.hello(); }   // «зашёл в игру» — раз за загрузку страницы
     clearPlayfield();   // убрать карточки прошлого раунда
     resetStreak();
     updateCounters();
@@ -639,6 +689,7 @@
     exit(good ? "fly-good" : "fly-bad");
     var item = { w: word.w, g: word.g, tr: word.tr || null, lang: word.lang, pos: word.pos || "" };
     (good ? round.good : round.bad).push(item);
+    tele.word(item, good);     // кросс-игровая статистика (если включена)
     pushAllTime(item, good);   // кумулятив «за всё время»
     tasteUpdate(word, good);   // обучаем модель вкуса
     if (good && !round.forge) addGoodCorpus(word);   // словарные good → ингредиенты ковки
@@ -719,6 +770,7 @@
 
   // ── итоги ──────────────────────────────────────────────────────────────
   function endRound() {
+    tele.roundDone();   // дослать слова + ++rounds на бэкенд
     var no = (load(K_RND, 0) | 0) + 1;
     save(K_RND, no);
     round.no = no;
@@ -951,6 +1003,59 @@
     if (resView === "all") rerenderResults();   // если открыт экран итогов в режиме «за всё время»
     buildMenu();
   });
+
+  // ── лидерборд ──────────────────────────────────────────────────────────
+  function openLeaderboard() {
+    var body = $("lbBody");
+    show($("lbOverlay"));
+    body.innerHTML = '<div class="lb-load">Загрузка…</div>';
+    tele.leaderboard().then(renderLeaderboard).catch(function () {
+      body.innerHTML = '<div class="lb-load err">Сервер статистики недоступен. Проверь, что бэкенд запущен и API_BASE указывает на него.</div>';
+    });
+  }
+  function renderLeaderboard(d) {
+    var body = $("lbBody"), t = d.totals || {};
+    function wordRows(arr, cls) {
+      if (!arr || !arr.length) return '<div class="lb-empty">пока пусто</div>';
+      return arr.map(function (x) {
+        var n = (cls === "good") ? x.good : x.bad;
+        return '<div class="lb-wrow"><span class="lb-w">' + esc(x.label) + '</span>' +
+               '<span class="lb-lng">' + esc(langBadge(x.lang)) + '</span>' +
+               '<span class="lb-n ' + cls + '">' + n + '</span></div>';
+      }).join("");
+    }
+    var players = (d.players || []).map(function (p, i) {
+      return '<div class="lb-prow' + (i === 0 ? ' top' : '') + '"><span class="lb-rank">' + (i + 1) + '</span>' +
+             '<span class="lb-nick">' + esc(p.nick) + '</span>' +
+             '<span class="lb-words">' + p.words + '</span>' +
+             '<span class="lb-gb"><b class="good-t">' + p.good + '</b>/<b class="bad-t">' + p.bad + '</b></span>' +
+             '<span class="lb-rounds">' + p.rounds + ' р.</span></div>';
+    }).join("") || '<div class="lb-empty">пока никто не играл</div>';
+
+    body.innerHTML =
+      '<div class="lb-totals">' +
+        '<span><b>' + (t.players || 0) + '</b> игроков</span>' +
+        '<span><b>' + (t.words || 0) + '</b> слов</span>' +
+        '<span><b>' + (t.rounds || 0) + '</b> раундов</span>' +
+      '</div>' +
+      '<div class="lb-sect"><h3>Кто наиграл больше всех</h3>' +
+        '<div class="lb-phead"><span class="lb-rank">#</span><span class="lb-nick">игрок</span>' +
+        '<span class="lb-words">слов</span><span class="lb-gb">g/b</span><span class="lb-rounds">раундов</span></div>' +
+        players + '</div>' +
+      '<div class="lb-twocol">' +
+        '<div class="lb-sect"><h3>💚 Самые любимые</h3>' + wordRows(d.loved, "good") + '</div>' +
+        '<div class="lb-sect"><h3>💔 Самые отвергнутые</h3>' + wordRows(d.hated, "bad") + '</div>' +
+      '</div>';
+  }
+  if (tele.on) {
+    $("btnLbStart").addEventListener("click", openLeaderboard);
+    $("btnLbResults").addEventListener("click", openLeaderboard);
+    $("btnCloseLb").addEventListener("click", function () { hide($("lbOverlay")); });
+    $("lbOverlay").addEventListener("click", function (e) { if (e.target === $("lbOverlay")) hide($("lbOverlay")); });
+  } else {
+    // телеметрия выключена (API_BASE пуст) — прячем кнопки лидерборда
+    hide($("btnLbStart")); hide($("btnLbResults"));
+  }
 
   // компактный выбор словарей на старт-экране: аббревиатура (база) / имя (свой), без расшифровки
   function renderStartLangs() {

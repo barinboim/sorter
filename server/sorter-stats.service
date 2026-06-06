@@ -1,0 +1,30 @@
+# systemd unit для бэкенда статистики Sorter.
+# Положи в /etc/systemd/system/sorter-stats.service, поправь пути/секреты и:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now sorter-stats
+#
+# Секреты лучше держать в отдельном /etc/sorter-stats.env (chmod 600), а не тут.
+[Unit]
+Description=Sorter stats backend
+After=network.target
+
+[Service]
+Type=simple
+# отдельный непривилегированный пользователь (создай: sudo useradd -r -s /usr/sbin/nologin sorter)
+User=sorter
+Group=sorter
+WorkingDirectory=/opt/sorter/server
+ExecStart=/usr/bin/python3 /opt/sorter/server/sorter_stats.py
+EnvironmentFile=/etc/sorter-stats.env
+Restart=on-failure
+RestartSec=2
+# мягкая изоляция
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# каталог под БД и соль (должен быть writable для User=sorter)
+ReadWritePaths=/opt/sorter/server
+
+[Install]
+WantedBy=multi-user.target

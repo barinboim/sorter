@@ -59,6 +59,7 @@
           <button class="modebtn" id="viewAll">за всё время</button>
         </div>
         <button class="btn" id="btnExport">Экспорт .txt</button>
+        <button class="btn lbbtn" id="btnLbResults">🏆 Лидеры</button>
         <button class="btn fusion" id="btnForgeRound">✦ Fusion!</button>
         <button class="btn primary" id="btnNewRound">Новый раунд</button>
       </div>
@@ -124,6 +125,7 @@
         </div>
 
         <div class="poolinfo" id="poolInfo"></div>
+        <button class="btn lbbtn wide" id="btnLbStart">🏆 Лидерборд</button>
         <div class="credit">Автор: Олег Баринбойм · связаться: <a href="https://t.me/barinboim" target="_blank" rel="noopener">t.me/barinboim</a></div>
       </div>
     </div>
@@ -201,6 +203,20 @@
       <div class="field">
         <button class="btn" id="btnCloseMenu2">Готово</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ЛИДЕРБОРД -->
+  <div id="lbOverlay" class="overlay hidden">
+    <div class="panel lb">
+      <div class="panel-head">
+        <h2>🏆 Лидерборд</h2>
+        <button class="iconbtn" id="btnCloseLb" title="Закрыть">✕</button>
+      </div>
+      <div id="lbBody" class="lb-body">
+        <div class="lb-load">Загрузка…</div>
+      </div>
+      <p class="hint">Считается на сервере по всем игрокам. Игроки — анонимные (по солёному хешу IP, сырой адрес не хранится).</p>
     </div>
   </div>
 
